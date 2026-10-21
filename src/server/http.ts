@@ -1,3 +1,4 @@
+import { unstable_rethrow } from "next/navigation";
 import { HTTP_STATUS, ParkingError } from "@/domain/errors";
 import { getRequestSupabase, type RequestSupabase } from "@/lib/supabase/server";
 
@@ -25,6 +26,8 @@ export async function handle(run: () => Promise<Response>): Promise<Response> {
   try {
     return await run();
   } catch (err) {
+    // Next signals dynamic rendering by throwing; those must pass through, not become a 500.
+    unstable_rethrow(err);
     return errorResponse(err);
   }
 }
