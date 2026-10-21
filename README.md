@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Parking system
 
-## Getting Started
+A parking lot with a fixed number of small and large spots, run by signed-in attendants.
 
-First, run the development server:
+- A small car takes the lowest-numbered free small spot, and a large spot only when no small one is free.
+- A large car takes large spots only. It is refused even when small spots are free.
+- Parking issues a ticket with the car number, spot number and arrival time.
+- The car comes back only with the ticket code and the matching plate. A returned ticket can't be used again.
+
+The full rule set, data model and API are in [docs/CONTRACT.md](docs/CONTRACT.md).
+
+## Stack
+
+Next.js 16 (App Router) on Vercel, Supabase (Postgres and Auth), Vitest, Playwright.
+
+## Run it locally
+
+Needs Node 24 and Docker.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npx supabase start      # local Postgres + Auth, applies migrations and seed
+npm run env:local       # writes .env.local from the running stack and .env.example
+npm run dev             # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sign in with a seeded test attendant (`E2E_ATTENDANT_EMAIL` / `E2E_ATTENDANT_PASSWORD` in `.env.example`; local only).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tests
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | What it covers |
+|---|---|
+| `npm run test:unit` | Allocation, plate, ticket code and duration rules (pure functions) |
+| `npm run test:api` | Black-box HTTP tests, database constraints and RLS, and concurrency races (needs the dev server and Supabase running) |
+| `npm run test:e2e` | Playwright journeys through the attendant screens |
 
-## Learn More
+The API and E2E suites share one lot, so they run serially and must never overlap against the same database.
 
-To learn more about Next.js, take a look at the following resources:
+CI (`.github/workflows/ci.yml`) runs typecheck, lint and all three levels on every PR, against a local Supabase.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Design choices
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Correctness lives in the database.** Large car in a small spot, two cars in one spot, and two active tickets for one plate are all impossible at the database level (check constraint, composite foreign key, partial unique indexes), so a bug or a race in the app can't break them.
+- **The allocation rule lives once**, in `src/domain/allocation.ts`. When two attendants race for the same spot, the database rejects the second insert and that request picks again. Every conflict means another car got a spot, so the retry loop always ends with a ticket or "lot full", never a server error.
+- **Row-level security:** only signed-in attendants can read or write. Tickets record who issued and who returned them, can't be deleted, and can be returned once.
 
-## Deploy on Vercel
+## Code map
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/domain/        pure rules and types: allocation, plate, size, ticket-code, duration, errors
+src/server/        services (park, return-car, queries), repositories, HTTP helpers
+src/lib/supabase/  browser and request-scoped Supabase clients
+src/app/api/       thin route handlers: /api/tickets, /api/tickets/{code}, /api/tickets/{code}/return, /api/spots
+src/app/           pages: / (lot), /login, /tickets/{code} (printable)
+src/ui/            attendant screen components
+src/proxy.ts       session refresh and sign-in redirect
+supabase/          migrations (schema, RLS) and local seed
+tests/unit|api|e2e test levels; tests/support holds shared env and db helpers
+```

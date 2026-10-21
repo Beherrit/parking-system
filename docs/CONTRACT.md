@@ -18,7 +18,8 @@ The single source of truth that every module is built against. Change this file 
 | D3 | Ticket code: 8 chars, Crockford base32 alphabet `0123456789ABCDEFGHJKMNPQRSTVWXYZ`. Input normalization: upper case, strip spaces and dashes. |
 | D4 | Returned tickets are kept (history). Returning twice is ALREADY_RETURNED. |
 | D5 | Times stored UTC (timestamptz), shown in viewer's local time. Duration = whole minutes, floored. |
-| D6 | "Lowest-numbered" is natural order: S2 before S10. |
+| D6 | "Lowest-numbered" is natural order: S2 before S10. Listings show small spots first, then large, each in natural order (S1..S10, L1..L5). |
+| D8 | Return input: the plate is normalized like D1. A code that fails D3 is 400 INVALID_INPUT. Checks run in order: not found (404), already returned (409), plate mismatch (422). |
 | D7 | Only signed-in attendants can do anything. Tickets record issued_by and returned_by. |
 
 ## Domain (`src/domain/`, pure, no I/O)
@@ -98,8 +99,12 @@ listSpots(db): Promise<SpotStatus[]>            // natural order
 listActiveTickets(db): Promise<Ticket[]>        // newest first
 ```
 
-`parkCar`: up to 3 attempts of (read free spots, chooseSpot, null => LOT_FULL,
-insert). Retry on spot or code conflict; plate conflict => ALREADY_PARKED.
+`parkCar`: loop of (read free spots, chooseSpot, null => LOT_FULL, insert).
+Retry on spot or code conflict, with a short random backoff (0-25 ms): every
+spot conflict means another car got that spot, so the loop always makes
+progress and ends in a ticket or LOT_FULL. Safety cap 20 attempts, then
+BUSY (503). Plate conflict => ALREADY_PARKED. Many cars parking at once must
+never produce a 500.
 `returnCar`: unknown code => TICKET_NOT_FOUND; returned => ALREADY_RETURNED;
 plate differs => PLATE_MISMATCH; the update is `where returned_at is null` and
 zero rows updated => ALREADY_RETURNED.
@@ -118,7 +123,9 @@ with the status from `HTTP_STATUS`.
 | POST | `/api/tickets/{code}/return` | `{ plate }` | 200 `{ ticket, durationMinutes }` |
 | GET | `/api/spots` | | 200 `{ spots }` |
 
-Malformed JSON => 400 INVALID_INPUT. Route handlers stay thin: parse, call a
+Malformed JSON => 400 INVALID_INPUT. Unexpected failures => 500 INTERNAL with a
+generic message (detail logged server side only). `GET /api/tickets` without
+`active=true` also lists active tickets (only the active listing exists). Route handlers stay thin: parse, call a
 service, map errors (one shared helper in `src/server/http.ts`).
 
 ## UI

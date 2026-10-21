@@ -7,7 +7,9 @@ export type ParkingErrorCode =
   | "ALREADY_PARKED"
   | "TICKET_NOT_FOUND"
   | "ALREADY_RETURNED"
-  | "PLATE_MISMATCH";
+  | "PLATE_MISMATCH"
+  | "BUSY"
+  | "INTERNAL";
 
 export const HTTP_STATUS: Record<ParkingErrorCode, number> = {
   INVALID_INPUT: 400,
@@ -17,6 +19,8 @@ export const HTTP_STATUS: Record<ParkingErrorCode, number> = {
   TICKET_NOT_FOUND: 404,
   ALREADY_RETURNED: 409,
   PLATE_MISMATCH: 422,
+  BUSY: 503,
+  INTERNAL: 500,
 };
 
 export class ParkingError extends Error {

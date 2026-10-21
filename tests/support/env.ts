@@ -11,7 +11,8 @@ function required(name: string): string {
 }
 
 export const testEnv = {
-  baseUrl: process.env.BASE_URL ?? "http://localhost:3000",
+  // Not BASE_URL: Vite sets that to "/" inside Vitest.
+  baseUrl: process.env.APP_URL ?? "http://localhost:3000",
   supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"),
   anonKey: required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
   serviceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
