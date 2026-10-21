@@ -1,6 +1,8 @@
 // D7: every route needs a session. No token or a garbage token -> 401 UNAUTHENTICATED.
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createClient } from "@supabase/supabase-js";
 import { attendantToken, resetLot } from "../support/db";
+import { testEnv } from "../support/env";
 import { activeTickets, api, expectError, parkOk, spots } from "./client";
 
 const routes: { name: string; method: string; path: string; body?: unknown }[] = [
@@ -55,6 +57,14 @@ describe("unauthenticated calls have no side effects", () => {
     expectError(res, 401, "UNAUTHENTICATED");
     expect(res.text).not.toContain("PRIVATE1");
   });
+});
+
+it("nobody can create their own account (sign-up is off)", async () => {
+  const anon = createClient(testEnv.supabaseUrl, testEnv.anonKey, { auth: { persistSession: false } });
+  const email = `intruder${Date.now()}@example.com`;
+  const { data, error } = await anon.auth.signUp({ email, password: "Intruder-123456" });
+  expect(error).not.toBeNull();
+  expect(data.session).toBeNull();
 });
 
 it("sanity: the same calls succeed with a valid token", async () => {

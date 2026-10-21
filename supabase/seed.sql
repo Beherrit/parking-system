@@ -1,11 +1,5 @@
 -- Local development and test data only. Not real accounts.
 
--- The lot: S1..S10 small, L1..L5 large.
-insert into spots (number, size)
-select 'S' || n, 'small'::car_size from generate_series(1, 10) n
-union all
-select 'L' || n, 'large'::car_size from generate_series(1, 5) n;
-
 -- Two attendants (emails and password match .env.example). Written straight into auth tables,
 -- so GoTrue's token columns must be '' rather than null or sign-in fails with a scan error.
 with attendants(id, email) as (
