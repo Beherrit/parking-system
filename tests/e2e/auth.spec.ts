@@ -41,4 +41,18 @@ test.describe("signed out", () => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/login$/);
   });
+
+  // Regression: after sign-out the login form came back with Sign in still disabled.
+  test("an attendant can sign out and sign straight back in, twice", async ({ page }) => {
+    const login = new LoginPage(page);
+    const lot = new LotPage(page);
+    await page.goto("/");
+    for (let round = 0; round < 2; round++) {
+      await login.signIn(testEnv.attendantEmail, testEnv.attendantPassword);
+      await expect(lot.lotName).toBeVisible();
+      await lot.signOut.click();
+      await expect(page).toHaveURL(/\/login$/);
+      await expect(login.submit).toBeEnabled();
+    }
+  });
 });

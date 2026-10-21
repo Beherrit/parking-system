@@ -2,9 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAnonKey, supabaseUrl } from "@/lib/supabase/env";
 
-const isApi = (path: string) => path === "/api" || path.startsWith("/api/");
-
-/** Refreshes the Supabase session cookie and sends signed-out page requests to /login. */
+/** Refreshes the Supabase session cookie on page requests and sends signed-out visitors to /login. */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
   // Bearer requests carry their own token; the handler verifies it.
@@ -24,8 +22,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     },
   });
 
-  const { data } = await supabase.auth.getUser();
-  if (data.user || isApi(pathname) || pathname === "/login") return response;
+  // Verified locally against the project's signing keys; refreshes the cookie first if it expired.
+  const { data } = await supabase.auth.getClaims();
+  if (data?.claims || pathname === "/login") return response;
 
   const redirect = NextResponse.redirect(new URL("/login", request.url));
   response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
@@ -36,6 +35,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  // Everything except Next internals and static files. /api is included only to refresh the cookie.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // Pages only. API handlers verify the session themselves, so running here too doubled the auth work.
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

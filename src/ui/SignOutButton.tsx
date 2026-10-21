@@ -1,18 +1,17 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { linkButton } from "./styles";
 
 export function SignOutButton() {
   const [busy, setBusy] = useState(false);
-  const router = useRouter();
 
   async function signOut() {
     setBusy(true);
     await createBrowserSupabase().auth.signOut({ scope: "local" });
-    router.replace("/login");
-    router.refresh();
+    // Full page load: a client-side route change would bring back the login form exactly as it was
+    // left (Next keeps visited pages alive), including a still-disabled Sign in button.
+    window.location.replace("/login");
   }
 
   return (

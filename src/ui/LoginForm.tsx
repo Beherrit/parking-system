@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { button, card } from "./styles";
@@ -10,7 +9,6 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const router = useRouter();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -22,8 +20,9 @@ export function LoginForm() {
       setBusy(false);
       return;
     }
-    router.replace("/");
-    router.refresh();
+    // A full page load, not a client-side route change: the router may hold the redirect to /login
+    // it cached before sign-in, which left the attendant needing a manual refresh.
+    window.location.replace("/");
   }
 
   return (
@@ -37,7 +36,7 @@ export function LoginForm() {
         <TextField id="login-password" testId="login-password" label="Password" type="password"
           autoComplete="current-password" value={password} onChange={setPassword} />
         <button type="submit" data-testid="login-submit" disabled={busy} className={`${button} w-full`}>
-          Sign in
+          {busy ? "Signing in..." : "Sign in"}
         </button>
       </form>
       <div aria-live="polite" className="empty:hidden">

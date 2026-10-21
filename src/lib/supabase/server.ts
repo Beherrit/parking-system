@@ -15,13 +15,19 @@ function bearerToken(req: Request): string | null {
   return match ? match[1] : null;
 }
 
+// getClaims verifies the JWT signature locally against the project's published keys (ES256),
+// so no round trip to Supabase Auth on every request. Expired or forged tokens give null.
+async function verifiedUserId(db: SupabaseClient, token?: string): Promise<string | null> {
+  const { data, error } = await db.auth.getClaims(token);
+  return error ? null : (data?.claims.sub ?? null);
+}
+
 async function fromBearer(token: string): Promise<RequestSupabase> {
   const db = createClient(supabaseUrl(), supabaseAnonKey(), {
     auth: NO_SESSION,
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
-  const { data, error } = await db.auth.getUser(token);
-  return { db, userId: error ? null : (data.user?.id ?? null) };
+  return { db, userId: await verifiedUserId(db, token) };
 }
 
 async function fromCookies(): Promise<RequestSupabase> {
@@ -38,8 +44,7 @@ async function fromCookies(): Promise<RequestSupabase> {
       },
     },
   });
-  const { data, error } = await db.auth.getUser();
-  return { db, userId: error ? null : (data.user?.id ?? null) };
+  return { db, userId: await verifiedUserId(db) };
 }
 
 /** Bearer token wins (API tests use it); otherwise the cookie session. */
